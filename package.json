@@ -1,0 +1,7 @@
+{
+  "name": "todos",
+  "private": false,
+  "version": "1.0.0",
+  "description": "A shared clipboard. One token, one list, anyone with the link.",
+  "license": "MIT"
+}

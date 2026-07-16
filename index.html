@@ -1,0 +1,887 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>todos — a shared clipboard</title>
+<meta name="description" content="A shared clipboard. One token, one list, anyone with the link.">
+<meta name="referrer" content="no-referrer">
+<link rel="icon" href="/icons/favicon.ico" sizes="any">
+<link rel="icon" href="/icons/favicon-32x32.png" type="image/png" sizes="32x32">
+<link rel="icon" href="/icons/favicon-16x16.png" type="image/png" sizes="16x16">
+<link rel="apple-touch-icon" href="/icons/apple-icon-180x180.png" sizes="180x180">
+<!-- Added to the home screen it runs standalone, which is also how it escapes Safari's
+     7-day eviction of script-writable storage. The server is still the record. -->
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="todos">
+<meta name="theme-color" content="#ffffff">
+
+<!-- Mirror of ~/.claude/assets/house-style.css (v1). Source of truth lives there. -->
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inconsolata:wght@200;300;400;500;600;700;800;900&display=swap');
+@import url('https://cdn.jsdelivr.net/npm/lxgw-wenkai-webfont/style.css');
+:root{
+  --bg:#ffffff;--fg:#444444;--fg-strong:#333333;--muted:#999999;--muted-2:#888888;--muted-3:#666666;
+  --link:#0000ee;--link-soft:#2563eb;--border:#e0e0e0;--border-2:#e8e8e8;--code-bg:#f8f8f8;--th-bg:#f5f5f5;--zebra:#f9f9f9;
+  --accent:#0000ee;--ok:#15803d;--warn:#b91c1c;
+  --font-mono:"Inconsolata","LXGW WenKai",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+  --font-cn:"LXGW WenKai","Songti SC","SimSun",serif;
+  --fs:14px;--lh:1.6;--maxw:840px;--radius:4px;--gap:16px;
+}
+*,*::before,*::after{box-sizing:border-box;}
+html{overflow-y:scroll;scroll-behavior:smooth;-webkit-text-size-adjust:100%;}
+body{max-width:var(--maxw);margin:40px auto;padding:0 16px;font-family:var(--font-mono);font-weight:300;font-size:var(--fs);line-height:var(--lh);color:var(--fg);background:var(--bg);-webkit-font-smoothing:antialiased;}
+:lang(zh),:lang(zh-CN),.cn{font-family:var(--font-cn);}
+a{color:var(--link);overflow-wrap:break-word;word-break:break-word;}
+a:visited{color:var(--link);}a:hover{opacity:.7;}
+h1,h2,h3,h4,h5{font-weight:300;line-height:1.25;color:var(--fg-strong);margin:1.6em 0 .55em;}
+h1{font-size:24px;}h2{font-size:19px;}h3{font-size:16px;}
+h4{font-size:14px;color:var(--muted-3);text-transform:uppercase;letter-spacing:.06em;}
+p{margin:.7em 0;}ul,ol{padding-left:1.4em;}li{margin:.3em 0;}strong,b{font-weight:600;}
+hr{border:none;border-top:1px solid var(--border);margin:1.6rem 0;}
+blockquote{margin:14px 0;padding:2px 14px;border-left:3px solid var(--border);color:var(--muted-3);}
+.hint{color:var(--muted);font-size:.85em;}.hint-italic{color:var(--muted);font-size:.85em;font-style:italic;}
+small,.small{font-size:.85em;color:var(--muted-3);}mark{background:#fff3b0;color:inherit;padding:0 2px;}
+code{background:var(--code-bg);border:1px solid var(--border-2);border-radius:3px;padding:2px 4px;font-size:.9em;color:var(--fg-strong);font-family:var(--font-mono);}
+pre{background:#fff;border:1px solid var(--border-2);border-radius:var(--radius);padding:16px;margin:16px 0;overflow-x:auto;font-size:14px;line-height:1.5;color:var(--fg-strong);box-shadow:0 1px 2px rgba(0,0,0,.05);}
+pre code{background:none;border:none;padding:0;font-size:inherit;}
+kbd{background:#fff;border:1px solid var(--border);border-bottom-width:2px;border-radius:3px;padding:1px 6px;font-size:.85em;font-family:var(--font-mono);color:var(--fg-strong);}
+.table-wrap{display:block;width:100%;margin:20px 0;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+table{width:100%;border-collapse:collapse;background:#fff;font-size:13px;}
+th,td{border:1px solid var(--border);padding:8px 12px;text-align:left;vertical-align:top;}
+th{background:var(--th-bg);font-weight:600;color:var(--fg-strong);}thead{border-bottom:2px solid var(--border);}
+tbody tr:nth-child(even){background:var(--zebra);}
+details{border:1px solid var(--border);border-radius:var(--radius);padding:10px 14px;margin:10px 0;background:#fff;}
+summary{cursor:pointer;list-style:none;user-select:none;font-weight:400;color:var(--fg-strong);}
+summary::-webkit-details-marker{display:none;}summary::before{content:"+ ";color:var(--muted-3);}
+details[open] summary::before{content:"− ";}details[open] summary{margin-bottom:8px;}
+.tooltip-ref{position:relative;cursor:help;}.tooltip-ref sup{color:var(--muted-3);font-size:.75em;margin-left:2px;}
+.tooltip-text{visibility:hidden;opacity:0;position:absolute;bottom:125%;left:50%;transform:translateX(-50%);background:#fff;color:var(--link-soft);padding:6px 10px;border:1px solid #333;max-width:280px;white-space:normal;z-index:1000;font-size:13px;line-height:1.4;transition:opacity .25s,visibility .25s;box-shadow:0 2px 8px rgba(0,0,0,.08);}
+.tooltip-ref:hover .tooltip-text{visibility:visible;opacity:1;}
+.hs-nav{position:sticky;top:0;z-index:50;background:rgba(255,255,255,.92);backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);border-bottom:1px solid var(--border);margin:0 -16px 24px;padding:10px 16px;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px;font-size:13px;}
+.hs-nav a{color:var(--muted-3);text-decoration:none;}.hs-nav a:hover{color:var(--link);opacity:1;}
+.hs-nav .brand{color:var(--fg-strong);font-weight:600;margin-right:auto;}
+.hero{padding:6px 0 2px;}.hero .eyebrow{color:var(--muted);font-size:.85em;letter-spacing:.05em;}
+.hero h1{margin:.15em 0 .25em;}.hero .tagline{color:var(--muted-3);font-size:15px;}
+section{padding:18px 0;scroll-margin-top:64px;}.section-num{color:var(--muted);font-weight:300;margin-right:.4em;}
+.grid{display:grid;gap:var(--gap);grid-template-columns:repeat(auto-fit,minmax(230px,1fr));}
+.grid-2{display:grid;gap:var(--gap);grid-template-columns:repeat(auto-fit,minmax(300px,1fr));}
+.card{border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.04);}
+.card>h3,.card>h4,.card>:first-child{margin-top:0;}.card>:last-child{margin-bottom:0;}
+.callout{border-left:3px solid var(--accent);background:var(--code-bg);padding:10px 14px;margin:14px 0;border-radius:0 var(--radius) var(--radius) 0;}
+.callout.ok{border-left-color:var(--ok);}.callout.warn{border-left-color:var(--warn);}.callout .label{font-weight:600;color:var(--fg-strong);}
+.chip{display:inline-block;border:1px solid var(--border);border-radius:999px;padding:1px 9px;font-size:.78em;color:var(--muted-3);background:#fff;margin:2px 3px 2px 0;white-space:nowrap;}.chip.solid{background:var(--code-bg);}
+ol.steps{counter-reset:step;list-style:none;padding-left:0;}ol.steps>li{position:relative;padding-left:32px;margin:12px 0;}
+ol.steps>li::before{counter-increment:step;content:counter(step);position:absolute;left:0;top:1px;width:20px;height:20px;line-height:20px;text-align:center;border:1px solid var(--fg-strong);border-radius:50%;font-size:11px;color:var(--fg-strong);}
+footer{margin-top:48px;padding-top:16px;border-top:1px solid var(--border);color:var(--muted);font-size:.85em;}
+.muted{color:var(--muted);}.center{text-align:center;}.stack>*+*{margin-top:10px;}
+@media (max-width:768px){body{padding:0 14px;margin:24px auto;}.hs-nav{margin:0 -14px 18px;}table{font-size:13px;white-space:nowrap;}}
+</style>
+
+<!-- ============================================================
+     CLIPBOARD · to-do list
+     Adds no colors. Three existing tokens make the three planes:
+       board  --th-bg    #f5f5f5
+       clip   --code-bg  #f8f8f8
+       paper  --bg       #ffffff
+     The clip is kbd grown into hardware; the checkbox is
+     summary::before pointed at a real <input>; delete is the "−"
+     that pairs with the add row's "+". Every rule is a real border.
+     ============================================================ -->
+<style>
+/* "LXGW WenKai" is proportional for Latin, so ahead of the mono fallbacks it
+   un-monospaces [ ] / [x] whenever the Inconsolata CDN is blocked. CJK still
+   lands on WenKai by per-glyph fallback. Belongs upstream in house-style.css. */
+:root{
+  --font-mono:"Inconsolata",ui-monospace,SFMono-Regular,Menlo,Consolas,"LXGW WenKai",monospace;
+  /* The written line: its grid and its type. On :root, not on .board, because the lock
+     screen writes a line too and it lives outside the board. */
+  --row-h:32px;                     /* the line box. a band is this plus its 1px rule. */
+  --band:calc(var(--row-h) + 1px);
+  --fs-item:16px;                   /* what you wrote. The house's 14/300 is document
+                                       type; this is a thing you read across a room. */
+  --gutter:44px;                    /* the [ ] column. the margin rule sits on its edge. */
+  --text-x:calc(var(--gutter) + 14px);
+  --step:var(--gutter);             /* one indent = one mark column. Anything less and the
+                                       margin rule lands inside the indented [ ]: the glyph
+                                       is centred in a 44px box, so at a 22px step its
+                                       centre IS the rule and the line strikes through it.
+                                       At a full gutter the mark clears the rule instead of
+                                       grazing it, and the rule reads as what depth 0 hangs
+                                       off. 36px is the bare minimum; it looks like a miss. */
+}
+
+/* --- the board: a surface with edges. no border, no shadow, not a card. --- */
+.board{
+  --rail:34px;                      /* bare board above the sheet: the clip's mount. This is
+                                       the whole cost of the clipboard conceit on a phone,
+                                       so it is the clip's height plus a hair, and no more. */
+  --edge:16px;                      /* sides and foot */
+  --bite:12px;                      /* how far the plate covers the sheet */
+  --clip-w:34%;                     /* of the board. Hardware is a fixed size: it does
+                                       not scale with the paper, so width is a ratio and
+                                       every height below is px. */
+  --lever-w:34%;                    /* of the clip */
+  --lever-h:10px;
+  --plate-h:22px;                   /* 9:1 at full width. A bar; nearer 5:1 it reads as a
+                                       nameplate, which is why --rail must not feed it. */
+  --clip-metal:var(--border);       /* #e0e0e0 as a FILL. The fill is what makes the plate
+                                       occlude; a clip the value of the paper is a drawing. */
+  --clip-edge:var(--muted);         /* #999. The house licenses hard linework only on small
+                                       objects (a 20px ol.steps counter). That is the real
+                                       constraint: at 260px wide this needed #666 to read
+                                       and broke the rule; at 200px it reads at the hint
+                                       value and keeps it. Size was the bug, not colour. */
+  position:relative; max-width:592px; margin:0 auto;   /* 560 sheet + 2 x --edge */
+  padding:var(--rail) var(--edge) var(--edge);
+  background:var(--th-bg); border-radius:var(--radius);
+  container-type:inline-size;       /* .paper is a descendant, so its cqw is this content
+                                       box: the sheet's own width. See min-height below. */
+}
+
+/* --- the clip: a plate mounted on the rail, gripping the sheet. Two boxes, no seam.
+       It sits wholly inside the board, with rail visible above it. When the plate's top
+       edge is collinear with the board's, the board reads as extruding a tab. --- */
+.clip{
+  position:absolute; z-index:2; left:50%; transform:translateX(-50%);
+  top:calc(var(--rail) + var(--bite) - var(--plate-h) - var(--lever-h));
+  width:var(--clip-w); height:calc(var(--lever-h) + var(--plate-h));
+  pointer-events:none;
+}
+.clip-lever{
+  position:absolute; z-index:1; top:0; left:50%;   /* paints over the plate's top border, */
+  margin-left:calc(var(--lever-w) * -.5);          /* so the step is one unbroken outline */
+  width:var(--lever-w); height:var(--lever-h);
+  background:var(--clip-metal); border:1px solid var(--clip-edge);
+  border-bottom:none; border-radius:3px 3px 0 0;
+}
+.clip-jaw{
+  position:absolute; z-index:0; top:calc(var(--lever-h) - 1px); left:0; right:0; bottom:0;
+  background:var(--clip-metal); border:1px solid var(--clip-edge);
+  border-bottom-width:2px;          /* the whole depth budget for this page */
+  border-radius:3px;                /* kbd's radius, sharper than the board's 4px */
+}
+
+/* --- the sheet --- */
+.paper{
+  position:relative; z-index:1; display:flex; flex-direction:column;
+  min-height:128.571cqw;                   /* 720/560: US Letter at EVERY width, because
+                                              cqw is the board's content box, which is
+                                              this sheet. min-height, so a long list
+                                              still grows the paper past it. */
+  background:var(--bg); border:1px solid var(--border); border-radius:var(--radius);
+  box-shadow:0 1px 2px rgba(0,0,0,.04);    /* the .card shadow; the only thing that casts */
+  overflow:hidden;
+}
+.paper::before{                            /* margin rule, full height, like a notebook */
+  content:""; position:absolute; top:0; bottom:0; left:var(--gutter);
+  width:1px; background:var(--border); pointer-events:none;
+}
+
+/* --- header: the clip covers the first band, the title sits on the second --- */
+.sheet-head{
+  display:flex; align-items:flex-end; justify-content:space-between; gap:12px;
+  padding:var(--row-h) var(--edge) 0 var(--text-x);
+  border-bottom:1px solid var(--border);
+}
+.sheet-head h1{
+  margin:0; font-size:14px; font-weight:300; line-height:var(--row-h);
+  color:var(--muted-3); text-transform:uppercase; letter-spacing:.06em;
+}
+.count{
+  line-height:var(--row-h); color:var(--muted); font-variant-numeric:tabular-nums;
+}
+.count:empty{display:none;}                /* the zero case. one mechanism, not two. */
+
+/* --- rows: one band each --- */
+.sheet-body{flex:1; display:flex; flex-direction:column; min-height:0;}
+.todos{list-style:none; margin:0; padding:0;}
+.todo,.add-row{
+  position:relative; margin:0; display:flex; align-items:flex-start;
+  padding-right:var(--edge); border-bottom:1px solid var(--border-2);
+}
+.chk{position:absolute; width:1px; height:1px; clip-path:inset(50%); overflow:hidden;}
+.row-label{flex:1; min-width:0; display:flex; align-items:flex-start; cursor:pointer;}
+
+/* Indent is a property of the LINE, not a link to a parent: an outline, not a tree.
+   So deleting a line leaves the lines under it exactly where they were, the way it
+   works in any text editor, and there is no cascade and no orphan to adopt. The whole
+   mark-plus-text block moves, so the margin rule keeps marking depth 0. */
+.todo[data-depth="1"] .row-label,.add-row[data-depth="1"] .plus{margin-left:var(--step);}
+.todo[data-depth="2"] .row-label,.add-row[data-depth="2"] .plus{margin-left:calc(var(--step) * 2);}
+.add-row[data-depth="1"] .plus,.add-row[data-depth="2"] .plus{width:var(--gutter);}
+/* The written lines carry --fs-item/500; all the chrome (head, count, placeholder,
+   drawer) stays at the house's 14/300. So the handwriting is the heaviest, largest
+   thing on the sheet, and everything printed on the form stays quieter than it. */
+.box{
+  flex:none; width:var(--gutter); text-align:center; line-height:var(--row-h);
+  font-size:var(--fs-item); font-weight:500;
+  color:var(--muted-3); user-select:none;   /* centred, not ch-padded: survives a fallback font */
+}
+.box::before{content:"[ ]";}
+.text{
+  flex:1; min-width:0; padding-left:14px; line-height:var(--row-h);
+  color:var(--fg); overflow-wrap:break-word;
+  font-size:var(--fs-item); font-weight:500;
+}
+
+/* --- done. Nothing animates, so the strike is simply declared here and nowhere else.
+       (A cross-fade would need line-through always-on at transparent, which in turn
+       needs a forced-colors escape or every row renders struck in high contrast.) --- */
+/* Blue is the pen. It is the page's only colour and it marks exactly one thing: what
+   YOU did. Printed matter (rules, [ ], the count) stays grey; every blue pixel is a
+   stroke you made. That is also the house rule kept honest — #0000ee never labels
+   anything here, it only ever draws. */
+.chk:checked + .row-label .box::before{content:"[x]";}
+.chk:checked + .row-label .box{color:var(--link);}        /* the [ ] was printed; the x is yours */
+.chk:checked + .row-label .text{
+  color:var(--muted);                      /* the task recedes */
+  text-decoration:line-through;            /* shorthand FIRST: it resets colour and thickness */
+  text-decoration-color:var(--link);       /* the strike outranks what it cancels */
+  text-decoration-thickness:1px;           /* the hairline family, not a slash */
+  text-decoration-skip-ink:none;           /* one unbroken pen stroke through descenders */
+}
+.chk:focus-visible + .row-label .box{      /* the pen is hovering over this box */
+  outline:1px solid var(--link); outline-offset:-4px;
+}
+
+/* --- the row-end keys: "~" rewrites a line, "−" removes one. With "+" on the add row
+       that is the whole verb set, and it is the diff vocabulary the house already
+       half-ships in summary::before. One class, so the two can never drift apart. --- */
+.key{
+  flex:none; border:0; background:none; padding:0 4px; font:inherit;
+  line-height:var(--row-h);                /* must follow font:inherit, the shorthand resets it */
+  min-width:24px;                          /* the glyph alone is a 15px target */
+  color:var(--muted); cursor:pointer; opacity:.45;   /* touch has no hover to reveal it */
+}
+@media (hover:hover){.key{opacity:0;} .todo:hover .key{opacity:.5;}}
+/* .todo-prefixed to reach (0,3,0): plain .key:hover loses to .todo:hover .key,
+   and a focused control must never sit at opacity 0. */
+.todo .key:hover,.todo .key:focus,.todo .key:focus-visible{opacity:1; color:var(--fg-strong);}
+
+/* --- editing in place: the row becomes the line you are writing on --- */
+.edit{
+  flex:1; min-width:0; margin:0; padding:0 0 0 14px; border:0; background:none; outline:none;
+  font:inherit; font-size:var(--fs-item); font-weight:500;
+  height:var(--row-h); line-height:var(--row-h); color:var(--fg); caret-color:var(--link);
+}
+.todo.editing{border-bottom-color:var(--link);}
+.todo.editing .box{color:var(--link);}
+
+/* --- the add line: the next blank rule, not a widget --- */
+.plus{
+  flex:none; width:var(--gutter); text-align:center; line-height:var(--row-h);
+  color:var(--muted-3); user-select:none; pointer-events:none;
+}
+.add-input{
+  flex:1; min-width:0; margin:0; padding:0 0 0 14px; border:0; background:none;
+  outline:none; font:inherit;
+  font-size:var(--fs-item); font-weight:500;     /* matches .text: you are writing a row */
+  height:var(--row-h); line-height:var(--row-h); color:var(--fg);
+  caret-color:var(--link);                       /* the pen tip */
+}
+.add-input::placeholder{font-size:14px; font-weight:300; color:var(--muted); opacity:1;}
+.add-row:focus-within{border-bottom-color:var(--link);}   /* the line you are writing on */
+.add-row:focus-within .plus{color:var(--link);}
+
+/* --- blank rule to the foot: a fixed count, sized by flex, clipped by overflow.
+       Nothing is measured, so nothing can drift. min-height is a border-box
+       height, so the box is 720 − 2 borders − 61 head − 31 add row = 626px of
+       ghosts, which is 20.19 bands. The 0.19 is why the ruling stops short of
+       the sheet's edge instead of doubling on its border.
+       Known: a wrapped row is 61px where two single rows are 62px, so the grid
+       shifts 1px per wrap. Invisible, self-limiting, and not worth a gradient. --- */
+.ghosts{flex:1 1 0; min-height:0; overflow:hidden;}
+.ghosts .rule{height:var(--band); border-bottom:1px solid var(--border-2);}
+
+/* --- the hit. A typewriter does not ease and does not grow: the typebar lands, the
+       platen takes it, done. So the [x] and the strike are already there on frame 1
+       and this is pure recoil, snapped between frames with steps(). --- */
+@keyframes typebar{
+  0%  {transform:translateY(0);}
+  30% {transform:translateY(3px);}
+  55% {transform:translateY(0);}
+  75% {transform:translateY(1px);}
+  100%{transform:translateY(0);}
+}
+.just-done{animation:typebar .12s steps(1,end);}
+
+/* The pixel bits fly here. Fixed, so the cannons can throw across the whole window. */
+.bits{position:fixed; inset:0; width:100%; height:100%; z-index:60; pointer-events:none;}
+
+/* --- the gate. No account and no password: a token is the list. --- */
+#lock{
+  position:fixed; inset:0; z-index:100; background:var(--bg);
+  display:none; align-items:center; justify-content:center; padding:24px;
+}
+#lock.show{display:flex;}
+.lockbox{width:300px; max-width:100%;}
+.lock-row{display:flex; align-items:center; border-bottom:1px solid var(--border);}
+.lock-row:focus-within{border-bottom-color:var(--link);}
+.lock-row .plus{color:var(--muted-3);}
+.lock-row:focus-within .plus{color:var(--link);}
+#pw{
+  flex:1; min-width:0; margin:0; padding:0 0 0 14px; border:0; background:none; outline:none;
+  font:inherit; font-size:var(--fs-item); font-weight:500;
+  height:var(--row-h); line-height:var(--row-h); color:var(--fg); caret-color:var(--link);
+}
+#pw::placeholder{font-size:14px; font-weight:300; color:var(--muted); opacity:1;}
+#pwerr{min-height:1.2em; margin-top:8px; color:var(--warn); font-size:.85em;}
+.gate-hint{margin-top:14px; color:var(--muted); font-size:.85em; line-height:1.5;}
+.gate-new{
+  margin-top:10px; padding:0; border:0; background:none; font:inherit; font-size:.85em;
+  color:var(--link); cursor:pointer; text-decoration:underline;
+}
+/* --- share + presence --- */
+.foot{max-width:592px; margin:10px auto 0; display:flex; align-items:baseline; gap:14px; font-size:.85em;}
+.share{padding:0; border:0; background:none; font:inherit; font-size:1em; color:var(--link); cursor:pointer; text-decoration:underline;}
+.share:disabled{color:var(--ok); text-decoration:none; cursor:default;}
+.here{color:var(--muted); margin-left:auto; font-variant-numeric:tabular-nums;}
+.here:empty{display:none;}
+.syncing{color:var(--muted);}
+
+/* --- the drawer: deleted lines, kept forever. It sits under the board, not on the
+       paper, because a deleted line is not on the paper any more. Plain house
+       <details>, so "+" opens it and "+" restores a line, the exact inverse of the
+       "−" that deleted it. --- */
+.trash{max-width:592px; margin:14px auto 0;}
+.trash[hidden]{display:none;}
+.trash summary{color:var(--muted-3); font-size:.85em;}
+.trash-n{color:var(--muted);}
+.trash-list{list-style:none; margin:0; padding:0; font-size:.9em;}
+.gone{display:flex; align-items:baseline; gap:10px; padding:3px 0; border-top:1px solid var(--border-2);}
+.gone:first-child{border-top:0;}
+.gone-text{flex:1; min-width:0; color:var(--muted); overflow-wrap:break-word;}
+.gone.was-done .gone-text{                 /* it was struck when it died; keep it struck */
+  text-decoration:line-through; text-decoration-color:var(--border);
+  text-decoration-thickness:1px; text-decoration-skip-ink:none;
+}
+.gone-when{flex:none; color:var(--border); font-variant-numeric:tabular-nums;}
+.restore{
+  flex:none; border:0; background:none; padding:0 4px; min-width:24px;
+  font:inherit; color:var(--muted); cursor:pointer;
+}
+.trash .restore:hover,.trash .restore:focus,.trash .restore:focus-visible{color:var(--fg-strong);}
+.more{
+  display:block; width:100%; margin-top:8px; padding:6px 0; border:0; border-top:1px solid var(--border-2);
+  background:none; font:inherit; font-size:.85em; color:var(--muted); cursor:pointer; text-align:left;
+}
+.more[hidden]{display:none;}
+.more:hover,.more:focus-visible{color:var(--link);}
+
+@media (pointer:coarse){                   /* 32px targets are too small. --row-h IS the grid. */
+  :root{--row-h:38px;}
+}
+/* No width breakpoint. The sheet's proportion is locked by cqw and the clip's by %,
+   so the object just scales. Hand-tuned breakpoints turned the sheet landscape
+   between 400 and 640px, which is what a breakpoint does to a fixed proportion. */
+</style>
+</head>
+<body>
+
+<main class="board">
+
+  <div class="clip" aria-hidden="true">
+    <div class="clip-lever"></div>
+    <div class="clip-jaw"></div>
+  </div>
+
+  <article class="paper">
+
+    <header class="sheet-head">
+      <h1>To do</h1>
+      <span class="count" id="count"></span>
+    </header>
+
+    <div class="sheet-body">
+
+      <ul class="todos" id="list" role="list"></ul>   <!-- list-style:none strips the role in Safari -->
+
+      <form class="add-row" id="add" autocomplete="off">
+        <span class="plus" aria-hidden="true">+</span>
+        <input class="add-input" id="new-item" type="text" aria-label="New item"
+               placeholder="write a line, press enter">
+      </form>
+
+      <div class="ghosts" id="ghosts" aria-hidden="true"></div>
+
+    </div>
+  </article>
+
+</main>
+
+<div class="foot">
+  <button class="share" id="share" type="button">copy share link</button>
+  <span class="here" id="here"></span>
+</div>
+
+<details class="trash" id="trash" hidden>
+  <summary>deleted <span class="trash-n" id="trash-n"></span></summary>
+  <ul class="trash-list" id="trash-list" role="list"></ul>
+  <button class="more" id="more" type="button" hidden></button>
+</details>
+
+<div id="lock">
+  <div class="lockbox">
+    <form class="lock-row" id="lock-form">
+      <span class="plus" aria-hidden="true">+</span>
+      <input id="pw" type="text" placeholder="paste a token" aria-label="List token"
+             autocomplete="off" autocapitalize="off" spellcheck="false">
+    </form>
+    <p id="pwerr" role="status"></p>
+    <button class="gate-new" id="gate-new" type="button">or start a new list</button>
+    <p class="gate-hint">A token is the list. Anyone with the link can read and write it,
+       so treat the link as the password. A token you make up yourself is a room name,
+       not a secret.</p>
+  </div>
+</div>
+
+<script>
+// Per token: two lists open in one browser must not share a cache.
+const q0 = new URLSearchParams(location.search).get('t') || '';
+const KEY   = 'todos.' + q0 + '.items';
+const TRASH = 'todos.' + q0 + '.trash';
+
+const list      = document.getElementById('list');
+const paper     = document.querySelector('.paper');
+const count     = document.getElementById('count');
+const field     = document.getElementById('new-item');
+const addRow    = document.getElementById('add');
+const ghosts    = document.getElementById('ghosts');
+const trashBox  = document.getElementById('trash');
+const trashList = document.getElementById('trash-list');
+const trashN    = document.getElementById('trash-n');
+const more      = document.getElementById('more');
+const lock      = document.getElementById('lock');
+const pw        = document.getElementById('pw');
+const pwerr     = document.getElementById('pwerr');
+const shareBtn  = document.getElementById('share');
+const hereEl    = document.getElementById('here');
+
+/* --- the token is the list. It lives in ?t= so a link is all you have to send. --- */
+const TOKEN_RE = /^[A-Za-z0-9_-]{4,64}$/;
+const me = Math.random().toString(36).slice(2, 10);   // this tab, for the presence count
+let token = new URLSearchParams(location.search).get('t') || '';
+
+function newToken() {                                  // 80 bits, unguessable
+  const b = new Uint8Array(10);
+  crypto.getRandomValues(b);
+  return [...b].map(x => 'abcdefghijkmnopqrstuvwxyz23456789'[x % 33]).join('');
+}
+
+function openList(t) {
+  token = t;
+  const url = location.pathname + '?t=' + encodeURIComponent(t);
+  history.replaceState(null, '', url);
+  hideLock();
+  state = load(KEY); trash = load(TRASH);   // caches are per token, see below
+  render();
+  pull();
+}
+
+const PAGE = 20;                // the drawer opens on the last 20; the rest is a click away
+let shown = PAGE;
+
+const pad   = n => String(n).padStart(2, '0');
+const newId = () => crypto.randomUUID
+  ? crypto.randomUUID()
+  : Date.now().toString(36) + Math.random().toString(36).slice(2);
+
+function load(key) {
+  try {
+    const saved = JSON.parse(localStorage.getItem(key));
+    return Array.isArray(saved) ? saved : [];   // a corrupt key gives a blank sheet, not a blank page
+  } catch (e) { return []; }
+}
+
+// Cache first, then queue the push. Every mutation already calls this, so nothing has
+// to remember to sync.
+function save() {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+    localStorage.setItem(TRASH, JSON.stringify(trash));
+  } catch (e) { /* private mode, quota */ }
+  sync();
+}
+
+let state = load(KEY);
+let trash = load(TRASH);        // newest first, kept forever
+
+function updateCount() {
+  const done = state.filter(item => item.done).length;
+  count.textContent = state.length ? pad(done) + ' / ' + pad(state.length) : '';
+}
+
+function key(glyph, cls, label) {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'key ' + cls;
+  b.textContent = glyph;
+  b.setAttribute('aria-label', label);
+  return b;
+}
+
+function row(item) {
+  const li = document.createElement('li');
+  li.className = 'todo';
+  li.dataset.depth = depthOf(item);
+  li.dataset.id = item.id;
+
+  const chk = document.createElement('input');
+  chk.type = 'checkbox';
+  chk.className = 'chk';
+  chk.id = 't-' + item.id;
+  chk.checked = item.done;
+
+  const label = document.createElement('label');
+  label.className = 'row-label';
+  label.htmlFor = chk.id;
+
+  const box = document.createElement('span');
+  box.className = 'box';
+  box.setAttribute('aria-hidden', 'true');
+
+  const text = document.createElement('span');
+  text.className = 'text';
+  text.textContent = item.text;              // textContent, never innerHTML
+
+  label.append(box, text);
+  li.append(chk, label,
+    key('~', 'ed', 'Edit: ' + item.text),
+    key('−', 'del', 'Delete: ' + item.text));
+  return li;
+}
+
+const depthOf = (item) => Math.min(2, Math.max(0, Number(item.depth) || 0));
+
+function goneRow(item) {
+  const li = document.createElement('li');
+  li.className = item.done ? 'gone was-done' : 'gone';
+
+  const when = document.createElement('span');
+  when.className = 'gone-when';
+  when.textContent = stamp(item.deletedAt);
+
+  const text = document.createElement('span');
+  text.className = 'gone-text';
+  text.textContent = item.text;
+
+  const back = document.createElement('button');
+  back.type = 'button';
+  back.className = 'restore';
+  back.textContent = '+';
+  back.dataset.id = item.id;
+  back.setAttribute('aria-label', 'Restore: ' + item.text);
+
+  li.append(when, text, back);
+  return li;
+}
+
+function stamp(ms) {
+  if (!ms) return '';
+  const d = new Date(ms);
+  return pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+}
+
+function render() {
+  list.replaceChildren(...state.map(row));
+  updateCount();
+
+  const page = Math.min(shown, trash.length);
+  trashList.replaceChildren(...trash.slice(0, page).map(goneRow));
+  trashN.textContent = trash.length ? '(' + trash.length + ')' : '';
+  trashBox.hidden = trash.length === 0;
+  const rest = trash.length - page;
+  more.hidden = rest <= 0;
+  more.textContent = rest > 0 ? '+ ' + Math.min(rest, PAGE) + ' more' : '';
+}
+
+addRow.addEventListener('submit', e => {
+  e.preventDefault();
+  const text = field.value.trim();
+  if (!text) return;
+  state.push({ id: newId(), text: text, done: false, depth: addDepth, updatedAt: Date.now() });
+  save();
+  render();
+  field.value = '';
+  field.focus();          // depth persists: the next line lands where this one did
+});
+
+/* --- indent. Tab normally moves focus, so swallowing it in a text field can trap a
+       keyboard user. The release valve: Shift+Tab at depth 0 is NOT swallowed, so
+       tabbing backwards always eventually leaves. Escape still bails out too. --- */
+const MAX_DEPTH = 2;                         // three levels: 0, 1, 2
+
+function nudge(e, get, set) {
+  if (e.key !== 'Tab') return false;
+  const d = get();
+  if (e.shiftKey && d === 0) return false;   // let focus go: never trap the keyboard
+  e.preventDefault();
+  set(Math.max(0, Math.min(MAX_DEPTH, d + (e.shiftKey ? -1 : 1))));
+  return true;
+}
+
+let addDepth = 0;                            // the add row stays where you left it, like an editor
+
+field.addEventListener('keydown', e => {
+  if (e.key === 'Escape') { field.value = ''; addDepth = 0; addRow.dataset.depth = 0; field.blur(); }
+  nudge(e, () => addDepth, d => { addDepth = d; addRow.dataset.depth = d; });
+});
+
+/* --- edit in place. The row swaps its label for an input; Enter and blur commit,
+       Escape reverts, Tab re-indents the line you are editing. --- */
+function edit(li) {
+  if (li.classList.contains('editing')) return;
+  const item = state.find(i => i.id === li.dataset.id);
+  if (!item) return;
+  li.classList.add('editing');
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'edit';
+  input.value = item.text;
+  input.setAttribute('aria-label', 'Edit item');
+  const label = li.querySelector('.row-label');
+  label.replaceChild(input, li.querySelector('.text'));
+
+  let done = false;
+  const finish = (keep) => {
+    if (done) return;
+    done = true;
+    const next = input.value.trim();
+    if (keep && next) { item.text = next; item.depth = Number(li.dataset.depth); item.updatedAt = Date.now(); save(); }
+    li.classList.remove('editing');
+    render();
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+    else nudge(e, () => Number(li.dataset.depth), d => { li.dataset.depth = d; });
+  });
+  input.addEventListener('blur', () => finish(true));
+  input.focus();
+  input.setSelectionRange(input.value.length, input.value.length);
+}
+
+list.addEventListener('click', e => {
+  const b = e.target.closest('.ed');
+  if (b) edit(b.closest('.todo'));
+});
+
+const REDUCED = matchMedia('(prefers-reduced-motion:reduce)');
+
+/* --- pixel bits: one canvas, one loop, two volumes. Striking a line pops a dozen off
+       the box; clearing the board fires both cannons. Same language, so the small one
+       is just the big one turned down. Every bit is an axis-aligned square snapped to
+       a 3px grid: no rotation, no scaling, no sub-pixel. That grid is the whole reason
+       it reads as pixels rather than as glitter. --- */
+const BITS = [], GRID = 3;
+const INK = ['#0000ee', '#2563eb', '#333333', '#999999', '#15803d', '#b91c1c'];
+let canvas = null, ctx = null, flying = false;
+
+function fitBits() {
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  canvas.width = innerWidth * dpr;
+  canvas.height = innerHeight * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);    // backing store only; nothing on screen scales
+}
+
+function spray(x, y, dir, spread, n, speed) {
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.className = 'bits';
+    canvas.setAttribute('aria-hidden', 'true');
+    document.body.append(canvas);
+    ctx = canvas.getContext('2d');
+    fitBits();
+    addEventListener('resize', fitBits);
+  }
+  for (let i = 0; i < n; i++) {
+    const a = dir + (Math.random() - .5) * spread;
+    const v = speed * (.55 + Math.random() * .8);
+    BITS.push({
+      x, y, vx: Math.cos(a) * v, vy: Math.sin(a) * v,
+      s: Math.random() < .5 ? GRID : GRID * 2,     // two sizes, both on the grid
+      c: INK[(Math.random() * INK.length) | 0],
+    });
+  }
+  if (!flying) { flying = true; requestAnimationFrame(tick); }
+}
+
+function tick() {
+  ctx.clearRect(0, 0, innerWidth, innerHeight);
+  for (let i = BITS.length - 1; i >= 0; i--) {
+    const b = BITS[i];
+    b.vy += .3;                              // gravity
+    b.vx *= .99;
+    b.x += b.vx;
+    b.y += b.vy;
+    if (b.y > innerHeight + 24) { BITS.splice(i, 1); continue; }
+    ctx.fillStyle = b.c;
+    ctx.fillRect(Math.round(b.x / GRID) * GRID, Math.round(b.y / GRID) * GRID, b.s, b.s);
+  }
+  if (BITS.length) return requestAnimationFrame(tick);
+  flying = false;
+  ctx.clearRect(0, 0, innerWidth, innerHeight);
+}
+
+function celebrate(li) {
+  if (REDUCED.matches) return;
+  li.classList.remove('just-done');
+  void li.offsetWidth;                       // rewind, so a re-check hits again
+  li.classList.add('just-done');
+  clearTimeout(li.hit);
+  li.hit = setTimeout(() => li.classList.remove('just-done'), 200);
+  const box = li.querySelector('.box').getBoundingClientRect();
+  spray(box.left + box.width / 2, box.top + box.height / 2, -Math.PI / 2, Math.PI * 1.3, 14, 5);
+}
+
+function cleared() {
+  if (REDUCED.matches) return;
+  spray(0, innerHeight, -Math.PI / 3, .8, 70, 18);          // left cannon
+  spray(innerWidth, innerHeight, -Math.PI * 2 / 3, .8, 70, 18);   // right cannon
+}
+
+// :checked drives the entire done state, so this must not re-render: replacing the
+// row would kill the animation mid-flight and drop focus.
+list.addEventListener('change', e => {
+  const chk = e.target.closest('.chk');
+  if (!chk) return;
+  const item = state.find(i => 't-' + i.id === chk.id);
+  if (!item) return;
+  item.done = chk.checked;
+  item.updatedAt = Date.now();
+  save();
+  updateCount();
+  if (!chk.checked) return;
+  celebrate(chk.closest('.todo'));
+  if (state.every(i => i.done)) cleared();            // the board is clear
+});
+
+list.addEventListener('click', e => {
+  const del = e.target.closest('.del');
+  if (!del) return;
+  const i = [...list.children].indexOf(del.closest('.todo'));
+  if (i < 0) return;
+  trash.unshift({ ...state[i], deletedAt: Date.now() });   // depth rides along, so a restore lands back at its indent   // deleting is a move, not a destroy
+  state.splice(i, 1);
+  save();
+  render();
+  // Only for keyboard activation (detail 0), which would otherwise drop focus to
+  // <body>. Restoring it after a mouse click would park focus on a hidden button,
+  // and the next Space would silently eat another row.
+  if (e.detail === 0) {
+    const next = list.children[i];
+    (next ? next.querySelector('.del') : field).focus();
+  }
+});
+
+trashList.addEventListener('click', e => {
+  const back = e.target.closest('.restore');
+  if (!back) return;
+  const i = trash.findIndex(item => item.id === back.dataset.id);
+  if (i < 0) return;
+  const { deletedAt, ...item } = trash[i];
+  trash.splice(i, 1);
+  item.updatedAt = Date.now();   // later than its deletedAt, so the merge un-deletes it
+  state.push(item);              // back on the last line, where you would rewrite it
+  save();
+  render();
+});
+
+more.addEventListener('click', () => { shown += PAGE; render(); });
+trashBox.addEventListener('toggle', () => { if (!trashBox.open) { shown = PAGE; render(); } });
+
+/* --- sync. localStorage is the cache, not the record: it is per-browser and Safari
+       drops script-writable storage after 7 days of not visiting. The server is the
+       record. Writes go local-first so the page keeps working with no network, and
+       the queued doc goes up on the next success. --- */
+let pushTimer = null, pushing = false, dirty = false;
+
+async function api(method, body) {
+  if (!token) { showLock(); throw new Error('no token'); }
+  const r = await fetch('/api/list?t=' + encodeURIComponent(token) + '&me=' + me, {
+    method,
+    headers: body ? { 'Content-Type': 'application/json' } : undefined,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  if (r.status === 400) { showLock(); throw new Error('bad token'); }
+  if (!r.ok) throw new Error('http ' + r.status);
+  const doc = await r.json();
+  hereEl.textContent = doc.here > 1 ? doc.here + ' here' : '';
+  return doc;
+}
+
+function adopt(doc) {
+  if (!doc || !Array.isArray(doc.todos)) return;
+  state = doc.todos;
+  trash = doc.trash || [];
+  try {
+    localStorage.setItem(KEY, JSON.stringify(state));
+    localStorage.setItem(TRASH, JSON.stringify(trash));
+  } catch (e) {}
+  render();
+}
+
+async function pull() {
+  try { adopt(await api('GET')); } catch (e) { /* offline: the cache stands */ }
+}
+
+async function push() {
+  if (pushing) { dirty = true; return; }
+  pushing = true;
+  try {
+    adopt(await api('PUT', { todos: state, trash: trash }));
+  } catch (e) {
+    dirty = true;                // keep it queued; the next save or focus retries
+  } finally {
+    pushing = false;
+    if (dirty) { dirty = false; setTimeout(push, 1500); }
+  }
+}
+
+function sync() { clearTimeout(pushTimer); pushTimer = setTimeout(push, 400); }
+
+function showLock() { lock.classList.add('show'); setTimeout(() => pw.focus(), 50); }
+function hideLock() { lock.classList.remove('show'); pw.value = ''; pwerr.textContent = ''; }
+
+document.getElementById('lock-form').addEventListener('submit', e => {
+  e.preventDefault();
+  const t = pw.value.trim();
+  if (!TOKEN_RE.test(t)) {
+    pwerr.textContent = '4-64 characters: letters, numbers, - and _';
+    pw.select();
+    return;
+  }
+  location.search = '?t=' + encodeURIComponent(t);   // reload: the cache key is per token
+});
+
+document.getElementById('gate-new').addEventListener('click', () => {
+  location.search = '?t=' + newToken();
+});
+
+shareBtn.addEventListener('click', async () => {
+  try {
+    await navigator.clipboard.writeText(location.href);
+    shareBtn.textContent = 'link copied';
+  } catch (e) {
+    shareBtn.textContent = location.href;             // clipboard blocked: show it to select
+    return;
+  }
+  shareBtn.disabled = true;
+  setTimeout(() => { shareBtn.textContent = 'copy share link'; shareBtn.disabled = false; }, 1600);
+});
+
+addEventListener('visibilitychange', () => { if (!document.hidden) pull(); });
+
+// The list is shared, so poll while the tab is in front. The same request carries the
+// presence heartbeat, which is why there is no second endpoint and no socket.
+setInterval(() => { if (!document.hidden && token) pull(); }, 5000);
+
+ghosts.innerHTML = '<div class="rule"></div>'.repeat(21);
+render();
+if (TOKEN_RE.test(token)) { pull(); if (matchMedia('(hover:hover)').matches) field.focus(); }
+else { token = ''; showLock(); }
+</script>
+</body>
+</html>

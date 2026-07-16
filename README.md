@@ -2,8 +2,10 @@
 
 A shared clipboard. One token, one list, anyone with the link.
 
+**[todos.cjj.li](https://todos.cjj.li)** — live, no sign-up
+
 No accounts, no sign-up, no password. The token in the URL *is* the list:
-`todos.example.com/?t=quiet-otter-42` opens that list and nothing else. Send the
+`todos.cjj.li/?t=quiet-otter-42` opens that list and nothing else. Send the
 link, and whoever has it can read and write with you, live.
 
 ![a clipboard with a ruled sheet on it](docs/screenshot.png)
@@ -45,6 +47,8 @@ git clone https://github.com/jajamoa/todos
 cd todos
 vercel link
 ```
+
+(That is how [todos.cjj.li](https://todos.cjj.li) itself is deployed.)
 
 Then add a Redis store (Vercel dashboard → Storage → Upstash Redis), which injects the
 env vars for you. Any of these pairs works:

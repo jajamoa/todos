@@ -648,6 +648,7 @@ function edit(li) {
   const item = state.find(i => i.id === li.dataset.id);
   if (!item) return;
   li.classList.add('editing');
+  editing = true;
 
   const input = document.createElement('input');
   input.type = 'text';
@@ -675,8 +676,10 @@ function edit(li) {
       save();
     }
     li.classList.remove('editing');
+    editing = false;
     render();
     if (then) then();
+    if (missed) { missed = false; pull(); }   // catch up on what we held back; pull re-checks
   };
 
   input.addEventListener('keydown', e => {
@@ -833,6 +836,9 @@ trashBox.addEventListener('toggle', () => { if (!trashBox.open) { shown = PAGE; 
        record. Writes go local-first so the page keeps working with no network, and
        the queued doc goes up on the next success. --- */
 let pushTimer = null, pushing = false, dirty = false;
+// render() replaces every row, so a sync landing while you are typing throws the input
+// away mid-word and the edit just ends. Hold any incoming doc until the caret leaves.
+let editing = false, missed = false;
 
 async function api(method, body) {
   if (!token) { showLock(); throw new Error('no token'); }
@@ -850,6 +856,7 @@ async function api(method, body) {
 
 function adopt(doc) {
   if (!doc || !Array.isArray(doc.todos)) return;
+  if (editing) { missed = true; return; }
   state = doc.todos;
   trash = doc.trash || [];
   try {
@@ -860,6 +867,7 @@ function adopt(doc) {
 }
 
 async function pull() {
+  if (busy()) { missed = true; return; }
   try { adopt(await api('GET')); } catch (e) { /* offline: the cache stands */ }
 }
 
@@ -867,7 +875,7 @@ async function push() {
   if (pushing) { dirty = true; return; }
   pushing = true;
   try {
-    adopt(await api('PUT', { todos: state, trash: trash }));
+    adopt(await api('PUT', { todos: state.filter(i => i.text), trash: trash }));
   } catch (e) {
     dirty = true;                // keep it queued; the next save or focus retries
   } finally {
@@ -876,7 +884,16 @@ async function push() {
   }
 }
 
-function sync() { clearTimeout(pushTimer); pushTimer = setTimeout(push, 400); }
+function sync() {
+  clearTimeout(pushTimer);
+  pushTimer = setTimeout(() => { pushTimer = null; push(); }, 400);
+}
+
+// A GET replaces the whole doc, so pulling while local work is still queued throws that
+// work away: type a line, let a poll land inside the 400ms debounce, and the line is
+// gone before it was ever sent. Only a PUT merges (the server unions per item), so a
+// pull is only safe when there is nothing of ours left to send.
+function busy() { return editing || pushing || dirty || pushTimer !== null; }
 
 function showLock() { lock.classList.add('show'); setTimeout(() => pw.focus(), 50); }
 function hideLock() { lock.classList.remove('show'); pw.value = ''; pwerr.textContent = ''; }

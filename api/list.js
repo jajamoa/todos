@@ -19,9 +19,12 @@ const EMPTY = { todos: [], trash: [], rev: 0 };
 
 const ok = (t) => typeof t === "string" && /^[A-Za-z0-9_-]{4,64}$/.test(t);
 
+// Upstash takes a single command at the base URL and a batch at /pipeline. Everything
+// here is a batch, so it always goes to /pipeline: posting a batch to the base URL is
+// read as one command with junk arguments, and it answers 200 while storing nothing.
 async function redis(cmd) {
   const url = RURL(), tok = RTOK();
-  const r = await fetch(url, {
+  const r = await fetch(url.replace(/\/$/, "") + "/pipeline", {
     method: "POST",
     headers: { Authorization: `Bearer ${tok}`, "Content-Type": "application/json" },
     body: JSON.stringify(cmd),

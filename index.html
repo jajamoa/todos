@@ -628,8 +628,21 @@ field.addEventListener('keydown', e => {
   nudge(e, () => addDepth, d => { addDepth = d; addRow.dataset.depth = d; });
 });
 
-/* --- edit in place. The row swaps its label for an input; Enter and blur commit,
-       Escape reverts, Tab re-indents the line you are editing. --- */
+/* --- edit in place. The row swaps its label for an input; Enter commits and opens a
+       fresh line under it at the same depth (Tab then indents it, which is the whole
+       point of editing an outline); Escape reverts; blur commits. --- */
+const sprouted = new Set();          // ids Enter conjured that have never held text
+
+function sprout(after, depth) {
+  const item = { id: newId(), text: '', done: false, depth: depth, updatedAt: Date.now() };
+  const at = after < 0 ? state.length : after + 1;
+  sprouted.add(item.id);
+  state.splice(at, 0, item);
+  render();
+  const li = list.children[at];
+  if (li) edit(li);
+}
+
 function edit(li) {
   if (li.classList.contains('editing')) return;
   const item = state.find(i => i.id === li.dataset.id);
@@ -644,19 +657,42 @@ function edit(li) {
   const label = li.querySelector('.row-label');
   label.replaceChild(input, li.querySelector('.text'));
 
-  let done = false;
-  const finish = (keep) => {
-    if (done) return;
-    done = true;
+  let closed = false;
+  const finish = (keep, then) => {
+    if (closed) return;
+    closed = true;
     const next = input.value.trim();
-    if (keep && next) { item.text = next; item.depth = Number(li.dataset.depth); item.updatedAt = Date.now(); save(); }
+    if (!next && sprouted.has(item.id)) {
+      const i = state.indexOf(item);       // a line Enter conjured that you never wrote in
+      if (i >= 0) state.splice(i, 1);      // was never real: drop it, and not into the trash
+      sprouted.delete(item.id);
+      save();
+    } else if (keep && next) {
+      item.text = next;
+      item.depth = Number(li.dataset.depth);
+      item.updatedAt = Date.now();
+      sprouted.delete(item.id);
+      save();
+    }
     li.classList.remove('editing');
     render();
+    if (then) then();
   };
+
   input.addEventListener('keydown', e => {
-    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
-    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
-    else nudge(e, () => Number(li.dataset.depth), d => { li.dataset.depth = d; });
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const blank = !input.value.trim();
+      const depth = Number(li.dataset.depth);
+      const id = item.id;
+      // Enter on a blank line ends the run instead of laying another blank under it.
+      finish(true, blank ? null : () => sprout(state.findIndex(x => x.id === id), depth));
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      finish(false);
+    } else {
+      nudge(e, () => Number(li.dataset.depth), d => { li.dataset.depth = d; });
+    }
   });
   input.addEventListener('blur', () => finish(true));
   input.focus();

@@ -482,6 +482,19 @@ function openList(t) {
 const PAGE = 20;                // the drawer opens on the last 20; the rest is a click away
 let shown = PAGE;
 
+/* --- IME guard. Pressing Enter to CONFIRM a Chinese/Japanese/Korean composition also
+       fires a keydown for that Enter, so "pick the character" would double as "new
+       line". isComposing is true for it (keyCode 229 on old engines). Some browsers
+       fire the confirming keydown AFTER compositionend, when isComposing is already
+       false, which is the intermittent case; the flag, cleared one task late, covers
+       it. Attach watchIME to any field that takes CJK text. --- */
+let imeGuard = false;
+const watchIME = (el) => {
+  el.addEventListener('compositionstart', () => { imeGuard = true; });
+  el.addEventListener('compositionend', () => { setTimeout(() => { imeGuard = false; }, 0); });
+};
+const midComposition = (e) => e.isComposing || e.keyCode === 229 || imeGuard;
+
 const pad   = n => String(n).padStart(2, '0');
 const newId = () => crypto.randomUUID
   ? crypto.randomUUID()
@@ -623,7 +636,10 @@ function nudge(e, get, set) {
 
 let addDepth = 0;                            // the add row stays where you left it, like an editor
 
+watchIME(field);
 field.addEventListener('keydown', e => {
+  // A confirming Enter would otherwise implicitly submit the form: block only that.
+  if (midComposition(e)) { if (e.key === 'Enter') e.preventDefault(); return; }
   if (e.key === 'Escape') { field.value = ''; addDepth = 0; addRow.dataset.depth = 0; field.blur(); }
   nudge(e, () => addDepth, d => { addDepth = d; addRow.dataset.depth = d; });
 });
@@ -682,7 +698,9 @@ function edit(li) {
     if (missed) { missed = false; pull(); }   // catch up on what we held back; pull re-checks
   };
 
+  watchIME(input);
   input.addEventListener('keydown', e => {
+    if (midComposition(e)) return;   // confirming a character is not Enter/Tab/Escape
     if (e.key === 'Enter') {
       e.preventDefault();
       const blank = !input.value.trim();
